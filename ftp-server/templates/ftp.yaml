@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-ftp-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-ftp-server
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-ftp-server
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-ftp-server
+    spec:
+      containers:
+      - name: vsftpd
+        image: fauria/vsftpd
+        env:
+        - name: FTP_PASS
+          value: admin
+        - name: PASV_MIN_PORT
+          value: '21000'
+        - name: PASV_MAX_PORT
+          value: '21000'
+        - name: PASV_ADDRESS
+          value: '127.0.0.1'
+        ports:
+        - containerPort: 20
+          protocol: TCP
+        - containerPort: 21
+          protocol: TCP
+        - containerPort: 21000
+          protocol: TCP
+        volumeMounts:
+          - name: ftp-data
+            mountPath: /data
+      volumes:
+      - name: ftp-data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-ftp-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-ftp-service
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - name: ftp-transfer
+      port: 20
+      targetPort: 20
+    - name: ftp
+      port: 21
+      targetPort: 21
+    - name: ftp-passive
+      port: 21000
+      targetPort: 21000
+  selector:
+    app: {{ .Release.Name }}-ftp-server
